@@ -122,18 +122,43 @@ header {
 /* ── LAYOUT ── */
 .app { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 57px); }
 
+/* ── RESIZER ── */
+.resizer {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+  transition: background 0.15s;
+  z-index: 10;
+}
+.resizer:hover, .resizer.dragging { background: var(--accent); }
+.resizer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px;
+  height: 32px;
+  background: currentColor;
+  opacity: 0.3;
+  border-radius: 1px;
+}
+
 /* ── PANEL ── */
 .panel {
   width: 272px;
+  min-width: 160px;
+  max-width: 520px;
   flex-shrink: 0;
   background: var(--surface);
-  border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s;
 }
 .panel::-webkit-scrollbar { width: 4px; }
 .panel::-webkit-scrollbar-track { background: transparent; }
@@ -486,6 +511,8 @@ input[type=color] {
       </div>
     </div>
   </div>
+
+  <div class="resizer" id="resizer"></div>
 
   <!-- ══ SINGLE PAGE ══ -->
   <div id="singlePage" class="page active">
@@ -874,6 +901,57 @@ function showToast(msg, type='') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2400);
 }
+
+// ── RESIZABLE PANEL ──
+(function() {
+  const resizer = document.getElementById('resizer');
+  const panel = document.querySelector('.panel');
+  let startX, startW, dragging = false;
+
+  resizer.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    const newW = Math.min(520, Math.max(160, startW + delta));
+    panel.style.width = newW + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // Touch support
+  resizer.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startW = panel.offsetWidth;
+    resizer.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!resizer.classList.contains('dragging')) return;
+    const delta = e.touches[0].clientX - startX;
+    const newW = Math.min(520, Math.max(160, startW + delta));
+    panel.style.width = newW + 'px';
+  });
+
+  document.addEventListener('touchend', () => {
+    resizer.classList.remove('dragging');
+  });
+})();
 
 // ── PASTE ──
 window.addEventListener('paste', e => {
