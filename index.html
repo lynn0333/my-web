@@ -510,6 +510,32 @@ input[type=color] {
         <input type="range" id="gapY" min="20" max="300" value="80" oninput="updateVal('gapYVal',this.value+'px');redraw()">
       </div>
     </div>
+
+    <div id="posSection">
+      <div class="section-title">水印位置（单个模式）</div>
+      <div class="field">
+        <label>水平位置 <span class="val" id="posXVal">50%</span></label>
+        <input type="range" id="posX" min="0" max="100" value="50" oninput="updateVal('posXVal',this.value+'%');redraw()">
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label>垂直位置 <span class="val" id="posYVal">50%</span></label>
+        <input type="range" id="posY" min="0" max="100" value="50" oninput="updateVal('posYVal',this.value+'%');redraw()">
+      </div>
+      <div style="margin-top:10px">
+        <div class="section-title" style="margin-bottom:6px">快速定位</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(10,10)">↖ 左上</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(50,10)">↑ 上中</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(90,10)">↗ 右上</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(10,50)">← 左中</button>
+          <button class="toggle-btn active" style="padding:5px 0;font-size:11px" onclick="setPos(50,50)">⊙ 居中</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(90,50)">→ 右中</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(10,90)">↙ 左下</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(50,90)">↓ 下中</button>
+          <button class="toggle-btn" style="padding:5px 0;font-size:11px" onclick="setPos(90,90)">↘ 右下</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="resizer" id="resizer"></div>
@@ -616,11 +642,61 @@ let mergeAlign = 'start';
 let multiImages = [];
 let isDark = true;
 
+// ── LOCALSTORAGE PREFS ──
+const PREF_KEY = 'wm_prefs';
+function savePrefs() {
+  const prefs = {
+    wmText: document.getElementById('wmText').value,
+    fontSize: document.getElementById('fontSize').value,
+    opacity: document.getElementById('opacity').value,
+    wmColor: document.getElementById('wmColor').value,
+    posX: document.getElementById('posX').value,
+    posY: document.getElementById('posY').value,
+    gapX: document.getElementById('gapX').value,
+    gapY: document.getElementById('gapY').value,
+    wmMode, wmAngle, isDark,
+  };
+  try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch(e) {}
+}
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(PREF_KEY);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (p.wmText !== undefined) document.getElementById('wmText').value = p.wmText;
+    if (p.fontSize) { document.getElementById('fontSize').value = p.fontSize; updateVal('sizeVal', p.fontSize+'px'); }
+    if (p.opacity) { document.getElementById('opacity').value = p.opacity; updateVal('opacVal', p.opacity+'%'); }
+    if (p.wmColor) { document.getElementById('wmColor').value = p.wmColor; document.getElementById('hexVal').textContent = p.wmColor; }
+    if (p.posX) { document.getElementById('posX').value = p.posX; updateVal('posXVal', p.posX+'%'); }
+    if (p.posY) { document.getElementById('posY').value = p.posY; updateVal('posYVal', p.posY+'%'); }
+    if (p.gapX) { document.getElementById('gapX').value = p.gapX; updateVal('gapXVal', p.gapX+'px'); }
+    if (p.gapY) { document.getElementById('gapY').value = p.gapY; updateVal('gapYVal', p.gapY+'px'); }
+    if (p.wmMode) {
+      wmMode = p.wmMode;
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === wmMode));
+      updatePosSectionVisibility();
+    }
+    if (p.wmAngle !== undefined) {
+      wmAngle = p.wmAngle;
+      document.querySelectorAll('[data-angle]').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.angle) === wmAngle));
+    }
+    if (p.isDark !== undefined && p.isDark !== isDark) toggleTheme();
+  } catch(e) {}
+}
+
+// Auto-save on any input change
+document.addEventListener('input', savePrefs);
+document.addEventListener('click', e => {
+  if (e.target.matches('.toggle-btn, .theme-btn')) setTimeout(savePrefs, 50);
+});
+
 // ── THEME ──
 function toggleTheme() {
   isDark = !isDark;
   document.body.classList.toggle('light', !isDark);
   document.getElementById('themeBtn').textContent = isDark ? '🌙' : '☀️';
+  savePrefs();
 }
 
 // ── TAB SWITCH ──
@@ -635,9 +711,23 @@ function switchTab(t) {
 function setMode(type, btn) {
   btn.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if (type === 'mode') wmMode = btn.dataset.mode;
+  if (type === 'mode') { wmMode = btn.dataset.mode; updatePosSectionVisibility(); }
   if (type === 'angle') wmAngle = parseFloat(btn.dataset.angle);
   redraw();
+}
+function updatePosSectionVisibility() {
+  document.getElementById('posSection').style.opacity = wmMode === 'single' ? '1' : '0.35';
+  document.getElementById('posSection').style.pointerEvents = wmMode === 'single' ? '' : 'none';
+}
+function setPos(x, y) {
+  document.getElementById('posX').value = x;
+  document.getElementById('posY').value = y;
+  updateVal('posXVal', x+'%');
+  updateVal('posYVal', y+'%');
+  // highlight active quick-pos btn — reset all first
+  document.querySelectorAll('#posSection .toggle-btn').forEach(b=>b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  redraw(); savePrefs();
 }
 function setMergeDir(btn) {
   btn.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
@@ -691,6 +781,8 @@ function getWatermarkParams() {
     angle: wmAngle,
     gapX: parseInt(document.getElementById('gapX').value),
     gapY: parseInt(document.getElementById('gapY').value),
+    posX: parseInt(document.getElementById('posX').value) / 100,
+    posY: parseInt(document.getElementById('posY').value) / 100,
   };
 }
 
@@ -704,7 +796,9 @@ function applyWatermark(canvas, ctx, p) {
   const rad = (p.angle * Math.PI) / 180;
 
   if (p.mode === 'single') {
-    ctx.translate(W / 2, H / 2);
+    const x = W * (p.posX ?? 0.5);
+    const y = H * (p.posY ?? 0.5);
+    ctx.translate(x, y);
     ctx.rotate(rad);
     ctx.textAlign = 'center';
     ctx.fillText(p.text, 0, 0);
@@ -770,6 +864,9 @@ function downloadImageFromCanvas(canvasId, name='image') {
 }
 function resetSingle() {
   currentImg = null;
+  const canvas = document.getElementById('mainCanvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  canvas.width = 0; canvas.height = 0;
   document.getElementById('uploadZone').style.display = 'flex';
   document.getElementById('canvasWrap').style.display = 'none';
   document.getElementById('actionBar').style.display = 'none';
@@ -777,11 +874,15 @@ function resetSingle() {
 }
 function resetMulti() {
   multiImages = [];
+  const canvas = document.getElementById('multiCanvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  canvas.width = 0; canvas.height = 0;
   document.getElementById('thumbGrid').innerHTML = '';
   document.getElementById('mergeOptions').style.display = 'none';
   document.getElementById('multiCanvasWrap').style.display = 'none';
   document.getElementById('multiActionBar').style.display = 'none';
   document.getElementById('multiFileInput').value = '';
+  document.getElementById('sizeInfo').textContent = '';
 }
 
 // ── MULTI IMAGE ──
@@ -996,6 +1097,10 @@ function showToast(msg, type='') {
     resizer.classList.remove('dragging');
   });
 })();
+
+// ── INIT ──
+loadPrefs();
+updatePosSectionVisibility();
 
 // ── PASTE ──
 window.addEventListener('paste', e => {
